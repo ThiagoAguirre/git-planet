@@ -1,0 +1,111 @@
+name: git-planet
+description: Pixel-art Mars-like planet for your GitHub profile that grows with your contributions.
+branding:
+  icon: globe
+  color: orange
+
+inputs:
+  login:
+    description: GitHub account whose planet to draw.
+    default: ${{ github.repository_owner }}
+  window:
+    description: Which contributions count, `annual` (resets every January 1st) or `rolling` (trailing 365 days).
+    default: annual
+  canon:
+    description: Set to 'true' to keep the moons plain gray instead of tinting them with your language colors.
+    default: "false"
+  output-dir:
+    description: Folder that receives planet.gif, planet.png and share-card.png.
+    default: planet
+  commit:
+    description: Set to 'true' to publish the images to `branch`.
+    default: "true"
+  branch:
+    description: Branch that receives the images. It is force-pushed as a single commit, so history never grows.
+    default: output
+  token:
+    description: Token used to read your contributions and push the images.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install git-planet
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        version=$(grep -m1 '^version' "$GITHUB_ACTION_PATH/Cargo.toml" | cut -d'"' -f2)
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)   target="x86_64-unknown-linux-gnu";  ext="tar.gz" ;;
+          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.gz" ;;
+          macOS-ARM64) target="aarch64-apple-darwin";      ext="tar.gz" ;;
+          macOS-X64)   target="x86_64-apple-darwin";       ext="tar.gz" ;;
+          Windows-X64) target="x86_64-pc-windows-msvc";    ext="zip" ;;
+          *)           target="";                          ext="" ;;
+        esac
+
+        bin_dir="$RUNNER_TEMP/git-planet-bin"
+        package="git-planet-$version-$target"
+        mkdir -p "$bin_dir"
+        if [ -n "$target" ] && gh release download "v$version" --repo "$GITHUB_ACTION_REPOSITORY" \
+            --dir "$bin_dir" --pattern "$package.$ext" 2>/dev/null; then
+          if [ "$ext" = "zip" ]; then
+            unzip -q "$bin_dir/$package.zip" -d "$bin_dir"
+          else
+            tar -xzf "$bin_dir/$package.tar.gz" -C "$bin_dir"
+          fi
+          echo "$bin_dir/$package" >> "$GITHUB_PATH"
+        else
+          echo "No release binary for v$version on $RUNNER_OS-$RUNNER_ARCH; building from source."
+          cargo build --release --locked --manifest-path "$GITHUB_ACTION_PATH/Cargo.toml"
+          echo "$GITHUB_ACTION_PATH/target/release" >> "$GITHUB_PATH"
+        fi
+
+    - name: Collect contributions
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        PLANET_LOGIN: ${{ inputs.login }}
+        PLANET_WINDOW: ${{ inputs.window }}
+      run: |
+        set -euo pipefail
+        git-planet collect "$PLANET_LOGIN" --window "$PLANET_WINDOW" --output "$RUNNER_TEMP/planet-snapshot.json"
+
+    - name: Render the planet
+      shell: bash
+      env:
+        PLANET_CANON: ${{ inputs.canon }}
+        PLANET_OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: |
+        set -euo pipefail
+        args=(render "$RUNNER_TEMP/planet-snapshot.json" --output-dir "$PLANET_OUTPUT_DIR")
+        if [ "$PLANET_CANON" = "true" ]; then
+          args+=(--canon)
+        fi
+        git-planet "${args[@]}"
+
+    - name: Publish the images
+      if: inputs.commit == 'true'
+      shell: bash
+      env:
+        PLANET_BRANCH: ${{ inputs.branch }}
+        PLANET_OUTPUT_DIR: ${{ inputs.output-dir }}
+        PLANET_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        publish_dir="$RUNNER_TEMP/planet-publish"
+        rm -rf "$publish_dir"
+        mkdir -p "$publish_dir/$PLANET_OUTPUT_DIR"
+        cp "$PLANET_OUTPUT_DIR"/planet.gif "$PLANET_OUTPUT_DIR"/planet.png "$PLANET_OUTPUT_DIR"/share-card.png \
+          "$publish_dir/$PLANET_OUTPUT_DIR/"
+        cd "$publish_dir"
+        git init -q
+        git checkout -q --orphan "$PLANET_BRANCH"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add .
+        git commit -q -m "chore: update planet"
+        git push -q -f "https://x-access-token:${PLANET_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+          "$PLANET_BRANCH:$PLANET_BRANCH"

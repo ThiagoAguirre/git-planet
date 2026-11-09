@@ -1,0 +1,86 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive_ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_ext: zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package Unix archive (Linux & macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pkg_name="git-planet-${version}-${{ matrix.target }}"
+          mkdir -p "$pkg_name"
+          cp "target/${{ matrix.target }}/release/git-planet" "$pkg_name/"
+          cp README.md "$pkg_name/"
+          tar -czf "${pkg_name}.tar.gz" "$pkg_name"
+          if command -v sha256sum > /dev/null; then
+            sha256sum "${pkg_name}.tar.gz" > "${pkg_name}.tar.gz.sha256"
+          else
+            shasum -a 256 "${pkg_name}.tar.gz" > "${pkg_name}.tar.gz.sha256"
+          fi
+
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $pkgName = "git-planet-$version-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path $pkgName | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/git-planet.exe" "$pkgName/"
+          Copy-Item "README.md" "$pkgName/"
+          Compress-Archive -Path $pkgName -DestinationPath "$pkgName.zip" -Force
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            git-planet-*.*
+
+      - name: Update floating major tag (v1)
+        if: matrix.target == 'x86_64-unknown-linux-gnu' && startsWith(github.ref_name, 'v1.')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f v1 "${GITHUB_SHA}"
+          git push -f origin v1

@@ -1,0 +1,24 @@
+[package]
+name = "git-planet"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["Thiago Aguirre <thiago.aguirre08@outlook.com>"]
+description = "Pixel-art Mars-like planet for your GitHub profile that grows with your contributions."
+license = "MIT"
+readme = "README.md"
+keywords = ["github", "profile", "planet", "pixel-art", "gif"]
+categories = ["command-line-utilities", "visualization"]
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+gif = "0.13"
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2.10", features = ["json"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
