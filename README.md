@@ -8,9 +8,9 @@ A pixel-art **Mars-like planet** for your GitHub profile. Every January 1st it s
 
 ## Setup
 
-Replace `<your-username>` with your GitHub username. The examples assume this project is published at `github.com/<your-username>/git-planet`.
+This project lives at `github.com/ThiagoAguirre/git-planet`. To use it on another profile, replace `ThiagoAguirre` with that username.
 
-**1.** In your profile repository (`<your-username>/<your-username>`), create `.github/workflows/planet.yml`:
+**1.** In your profile repository (`ThiagoAguirre/ThiagoAguirre`), create `.github/workflows/planet.yml`:
 
 ```yaml
 name: Update planet
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: <your-username>/git-planet@v1
+      - uses: ThiagoAguirre/git-planet@v1
         with:
           window: annual # or `rolling` for the trailing 365 days
 ```
@@ -36,7 +36,7 @@ jobs:
 
 ```markdown
 <p align="center">
-  <img src="https://raw.githubusercontent.com/<your-username>/<your-username>/output/planet/planet.gif" width="640" alt="My planet" />
+  <img src="https://raw.githubusercontent.com/ThiagoAguirre/ThiagoAguirre/output/planet/planet.gif" width="640" alt="My planet" />
 </p>
 ```
 
@@ -79,7 +79,7 @@ cargo install --path .
 
 # Fetch your data (needs a token: GitHub Actions provides one automatically)
 export GITHUB_TOKEN=$(gh auth token)
-git-planet collect <your-username> --window annual --output snapshot.json
+git-planet collect ThiagoAguirre --window annual --output snapshot.json
 
 # Draw planet.gif, planet.png and share-card.png
 git-planet render snapshot.json --output-dir planet

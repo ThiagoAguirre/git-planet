@@ -7,6 +7,7 @@ authors = ["Thiago Aguirre <thiago.aguirre08@outlook.com>"]
 description = "Pixel-art Mars-like planet for your GitHub profile that grows with your contributions."
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/ThiagoAguirre/git-planet"
 keywords = ["github", "profile", "planet", "pixel-art", "gif"]
 categories = ["command-line-utilities", "visualization"]
 
